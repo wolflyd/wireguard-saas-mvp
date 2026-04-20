@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WireGuard SaaS Admin</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 24px;
+            background: #f7f7f8;
+            color: #222;
+        }
+
+        h1, h2 {
+            margin-top: 0;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            min-width: 220px;
+            gap: 6px;
+        }
+
+        input, button, textarea {
+            font-size: 14px;
+            padding: 8px 10px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .muted {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .ok {
+            color: #0a7a0a;
+            white-space: pre-wrap;
+        }
+
+        .err {
+            color: #b00020;
+            white-space: pre-wrap;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 14px;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .small {
+            font-size: 12px;
+        }
+
+        .warn-row td {
+            background: #fff8e1;
+        }
+
+        .danger-row td {
+            background: #ffe6e6;
+        }
+
+        .good-row td {
+            background: #eef9ee;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .stat-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .stat-title {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        pre {
+            background: #111;
+            color: #eee;
+            padding: 12px;
+            overflow: auto;
+            border-radius: 8px;
+        }
+
+        .modal-mask {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .modal-box {
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            width: min(92vw, 520px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .modal-close {
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #fff;
+            padding: 6px 10px;
+        }
+
+        .modal-body {
+            text-align: center;
+        }
+
+        .modal-body img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WireGuard SaaS 最小后台</h1>
+    <p class="muted">这个页面直接调用你现有的 FastAPI 接口，不需要额外前端框架。</p>
+
+    <div class="card">
+        <h2>服务状态</h2>
+        <div class="row">
+            <button onclick="checkHealth()">检查健康状态</button>
+            <button onclick="runExpireUsers()">执行到期清理</button>
+            <button onclick="loadUsers()">刷新用户列表</button>
+            <button onclick="loadDevices()">刷新设备列表</button>
+        </div>
+        <div id="statusBox" class="muted">还没有执行操作。</div>
+    </div>
+
+    <div class="card">
+        <h2>概览统计</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">总用户数</div>
+                <div class="stat-value" id="statTotalUsers">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">启用用户数</div>
+                <div class="stat-value" id="statActiveUsers">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">停用用户数</div>
+                <div class="stat-value" id="statDisabledUsers">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">总设备数</div>
+                <div class="stat-value" id="statTotalDevices">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">启用设备数</div>
+                <div class="stat-value" id="statEnabledDevices">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">7天内到期用户数</div>
+                <div class="stat-value" id="statExpiringUsers">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>创建用户</h2>
+        <div class="row">
+            <div class="field">
+                <label>邮箱</label>
+                <input id="userEmail" value="test2@example.com" />
+            </div>
+            <div class="field">
+                <label>用户名</label>
+                <input id="userName" value="second_user" />
+            </div>
+            <div class="field">
+                <label>购买天数</label>
+                <input id="userDays" type="number" value="30" />
+            </div>
+        </div>
+        <button onclick="createUser()">创建用户</button>
+        <div id="createUserResult" class="muted"></div>
+    </div>
+
+    <div class="card">
+        <h2>创建设备</h2>
+        <div class="row">
+            <div class="field">
+                <label>用户 ID</label>
+                <input id="deviceUserId" type="number" value="1" />
+            </div>
+            <div class="field">
+                <label>设备名</label>
+                <input id="deviceName" value="browser_test_device" />
+            </div>
+        </div>
+        <button onclick="createDevice()">创建设备</button>
+        <div id="createDeviceResult" class="muted"></div>
+    </div>
+
+    <div class="card">
+        <h2>用户列表</h2>
+        <div class="row">
+            <div class="field">
+                <label>按邮箱或名称搜索</label>
+                <input id="userFilterKeyword" oninput="renderUsersTable()" placeholder="例如 test@example.com 或 first_user" />
+            </div>
+            <div class="field">
+                <label>用户状态</label>
+                <select id="userFilterStatus" onchange="renderUsersTable()">
+                    <option value="all">全部</option>
+                    <option value="active">只看启用</option>
+                    <option value="disabled">只看停用</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>&nbsp;</label>
+                <button onclick="resetUserFilters()">清空用户筛选</button>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>邮箱</th>
+                    <th>名称</th>
+                    <th>到期时间</th>
+                    <th>剩余天数</th>
+                    <th>启用状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>设备列表</h2>
+        <div class="row">
+            <div class="field">
+                <label>按设备名 / 内网IP / 公钥搜索</label>
+                <input id="deviceFilterKeyword" oninput="renderDevicesTable()" placeholder="例如 windows、10.0.0.4 或公钥片段" />
+            </div>
+            <div class="field">
+                <label>设备状态</label>
+                <select id="deviceFilterStatus" onchange="renderDevicesTable()">
+                    <option value="all">全部</option>
+                    <option value="enabled">只看启用</option>
+                    <option value="disabled">只看停用</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>&nbsp;</label>
+                <button onclick="resetDeviceFilters()">清空设备筛选</button>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>用户 ID</th>
+                    <th>设备名</th>
+                    <th>公钥</th>
+                    <th>内网 IP</th>
+                    <th>启用状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="devicesTableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>操作日志</h2>
+        <div class="row">
+            <div class="field">
+                <label>动作类型</label>
+                <select id="logFilterAction" onchange="renderLogsTable()">
+                    <option value="all">全部</option>
+                    <option value="create_user">create_user</option>
+                    <option value="extend_user">extend_user</option>
+                    <option value="disable_user">disable_user</option>
+                    <option value="restore_user">restore_user</option>
+                    <option value="create_device">create_device</option>
+                    <option value="disable_device">disable_device</option>
+                    <option value="restore_device">restore_device</option>
+                    <option value="expire_cleanup">expire_cleanup</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>用户 ID</label>
+                <input id="logFilterUserId" oninput="renderLogsTable()" placeholder="例如 1" />
+            </div>
+            <div class="field">
+                <label>设备 ID</label>
+                <input id="logFilterDeviceId" oninput="renderLogsTable()" placeholder="例如 2" />
+            </div>
+            <div class="field">
+                <label>&nbsp;</label>
+                <button onclick="resetLogFilters()">清空日志筛选</button>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>时间</th>
+                    <th>动作</th>
+                    <th>用户ID</th>
+                    <th>设备ID</th>
+                    <th>说明</th>
+                </tr>
+            </thead>
+            <tbody id="logsTableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>最近结果</h2>
+        <pre id="debugBox">这里会显示最近一次接口返回。</pre>
+    </div>
+
+    <div id="qrModal" class="modal-mask" onclick="closeQrModal(event)">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div class="modal-title">设备二维码</div>
+                <button class="modal-close" onclick="forceCloseQrModal()">关闭</button>
+            </div>
+            <div class="modal-body">
+                <img id="qrModalImage" src="" alt="二维码预览" />
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setStatus(message, isError = false) {
+            const box = document.getElementById("statusBox");
+            box.className = isError ? "err" : "ok";
+            box.textContent = message;
+        }
+
+        function setResult(id, message, isError = false) {
+            const box = document.getElementById(id);
+            box.className = isError ? "err" : "ok";
+            box.textContent = message;
+        }
+
+        let latestUsers = [];
+        let latestDevices = [];
+        let latestLogs = [];
+
+        function setDebug(data) {
+            document.getElementById("debugBox").textContent =
+                typeof data === "string" ? data : JSON.stringify(data, null, 2);
+        }
+
+        function renderOverview() {
+            const now = new Date();
+
+            const totalUsers = latestUsers.length;
+            const activeUsers = latestUsers.filter(user => user.is_active).length;
+            const disabledUsers = totalUsers - activeUsers;
+
+            const totalDevices = latestDevices.length;
+            const enabledDevices = latestDevices.filter(device => device.is_enabled).length;
+
+            const expiringUsers = latestUsers.filter(user => {
+                if (!user.is_active) {
+                    return false;
+                }
+
+                const expireAt = new Date(user.expires_at);
+                const diffMs = expireAt.getTime() - now.getTime();
+                const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+                return diffDays >= 0 && diffDays <= 7;
+            }).length;
+
+            document.getElementById("statTotalUsers").textContent = String(totalUsers);
+            document.getElementById("statActiveUsers").textContent = String(activeUsers);
+            document.getElementById("statDisabledUsers").textContent = String(disabledUsers);
+            document.getElementById("statTotalDevices").textContent = String(totalDevices);
+            document.getElementById("statEnabledDevices").textContent = String(enabledDevices);
+            document.getElementById("statExpiringUsers").textContent = String(expiringUsers);
+        }
+
+        function resetUserFilters() {
+            document.getElementById("userFilterKeyword").value = "";
+            document.getElementById("userFilterStatus").value = "all";
+            renderUsersTable();
+        }
+
+        function resetDeviceFilters() {
+            document.getElementById("deviceFilterKeyword").value = "";
+            document.getElementById("deviceFilterStatus").value = "all";
+            renderDevicesTable();
+        }
+
+        function renderUsersTable() {
+            const tbody = document.getElementById("usersTableBody");
+            tbody.innerHTML = "";
+
+            const keyword = document.getElementById("userFilterKeyword").value.trim().toLowerCase();
+            const status = document.getElementById("userFilterStatus").value;
+
+            const users = latestUsers.filter(user => {
+                const hitKeyword =
+                    keyword === "" ||
+                    user.email.toLowerCase().includes(keyword) ||
+                    user.name.toLowerCase().includes(keyword);
+
+                const hitStatus =
+                    status === "all" ||
+                    (status === "active" && user.is_active) ||
+                    (status === "disabled" && !user.is_active);
+
+                return hitKeyword && hitStatus;
+            });
+
+            for (const user of users) {
+                const tr = document.createElement("tr");
+
+                const now = new Date();
+                const expireAt = new Date(user.expires_at);
+                const diffMs = expireAt.getTime() - now.getTime();
+
+                let daysLeft = "已到期";
+                let rowClass = "danger-row";
+
+                if (diffMs >= 0) {
+                    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                    daysLeft = `${days}天`;
+
+                    if (!user.is_active) {
+                        rowClass = "danger-row";
+                    } else if (days <= 3) {
+                        rowClass = "danger-row";
+                    } else if (days <= 7) {
+                        rowClass = "warn-row";
+                    } else {
+                        rowClass = "good-row";
+                    }
+                }
+
+                if (!user.is_active) {
+                    rowClass = "danger-row";
+                }
+
+                tr.className = rowClass;
+
+                tr.innerHTML = `
+                    <td>${user.id}</td>
+                    <td>${user.email}</td>
+                    <td>${user.name}</td>
+                    <td>${user.expires_at}</td>
+                    <td>${daysLeft}</td>
+                    <td>${user.is_active ? "启用" : "停用"}</td>
+                    <td>
+                        <button onclick="extendUser(${user.id}, 30)">续费30天</button>
+                        ${user.is_active
+                            ? `<button onclick="disableUser(${user.id})">停用用户</button>`
+                            : `<button onclick="restoreUser(${user.id})">恢复用户</button>`}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function renderDevicesTable() {
+            const tbody = document.getElementById("devicesTableBody");
+            tbody.innerHTML = "";
+
+            const keyword = document.getElementById("deviceFilterKeyword").value.trim().toLowerCase();
+            const status = document.getElementById("deviceFilterStatus").value;
+
+            const devices = latestDevices.filter(device => {
+                const hitKeyword =
+                    keyword === "" ||
+                    device.device_name.toLowerCase().includes(keyword) ||
+                    device.assigned_ip.toLowerCase().includes(keyword) ||
+                    device.public_key.toLowerCase().includes(keyword);
+
+                const hitStatus =
+                    status === "all" ||
+                    (status === "enabled" && device.is_enabled) ||
+                    (status === "disabled" && !device.is_enabled);
+
+                return hitKeyword && hitStatus;
+            });
+
+            for (const device of devices) {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${device.id}</td>
+                    <td>${device.user_id}</td>
+                    <td>${device.device_name}</td>
+                    <td class="small">${device.public_key}</td>
+                    <td>${device.assigned_ip}</td>
+                    <td>${device.is_enabled ? "启用" : "停用"}</td>
+                    <td>
+                        <div class="actions">
+                            <a href="/devices/${device.id}/config" target="_blank">配置</a>
+                            <a href="/devices/${device.id}/download" target="_blank">下载配置</a>
+                            <a href="#" onclick="openQrModal(${device.id}); return false;">二维码</a>
+                            ${device.is_enabled
+                                ? `<button onclick="disableDevice(${device.id})">禁用</button>`
+                                : `<button onclick="restoreDevice(${device.id})">恢复设备</button>`}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+
+        function resetLogFilters() {
+            document.getElementById("logFilterAction").value = "all";
+            document.getElementById("logFilterUserId").value = "";
+            document.getElementById("logFilterDeviceId").value = "";
+            renderLogsTable();
+        }
+
+        function renderLogsTable() {
+            const tbody = document.getElementById("logsTableBody");
+            tbody.innerHTML = "";
+
+            const action = document.getElementById("logFilterAction")?.value ?? "all";
+            const userIdKeyword = document.getElementById("logFilterUserId")?.value.trim() ?? "";
+            const deviceIdKeyword = document.getElementById("logFilterDeviceId")?.value.trim() ?? "";
+
+            const logs = latestLogs.filter(log => {
+                const hitAction =
+                    action === "all" ||
+                    log.action === action;
+
+                const hitUser =
+                    userIdKeyword === "" ||
+                    String(log.user_id ?? "").includes(userIdKeyword);
+
+                const hitDevice =
+                    deviceIdKeyword === "" ||
+                    String(log.device_id ?? "").includes(deviceIdKeyword);
+
+                return hitAction && hitUser && hitDevice;
+            });
+
+            for (const log of logs) {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${log.id}</td>
+                    <td>${log.created_at}</td>
+                    <td>${log.action}</td>
+                    <td>${log.user_id ?? ""}</td>
+                    <td>${log.device_id ?? ""}</td>
+                    <td>${log.message}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+
+        async function apiGet(url) {
+            const response = await fetch(url);
+            const text = await response.text();
+
+            let data = text;
+            try {
+                data = JSON.parse(text);
+            } catch (_) {
+            }
+
+            if (!response.ok) {
+                throw new Error(typeof data === "string" ? data : JSON.stringify(data, null, 2));
+            }
+
+            return data;
+        }
+
+        async function apiPost(url, payload = null) {
+            const options = {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            };
+
+            if (payload !== null) {
+                options.body = JSON.stringify(payload);
+            }
+
+            const response = await fetch(url, options);
+            const text = await response.text();
+
+            let data = text;
+            try {
+                data = JSON.parse(text);
+            } catch (_) {
+            }
+
+            if (!response.ok) {
+                throw new Error(typeof data === "string" ? data : JSON.stringify(data, null, 2));
+            }
+
+            return data;
+        }
+
+        async function checkHealth() {
+            try {
+                const data = await apiGet("/health");
+                setStatus("健康检查成功");
+                setDebug(data);
+                await loadLogs();
+            } catch (err) {
+                setStatus("健康检查失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function runExpireUsers() {
+            try {
+                const data = await apiPost("/admin/expire-users");
+                setStatus("到期清理执行成功");
+                setDebug(data);
+                await loadLogs();
+                await loadUsers();
+                await loadDevices();
+            } catch (err) {
+                setStatus("到期清理执行失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function createUser() {
+            const payload = {
+                email: document.getElementById("userEmail").value.trim(),
+                name: document.getElementById("userName").value.trim(),
+                days: Number(document.getElementById("userDays").value)
+            };
+
+            try {
+                const data = await apiPost("/users", payload);
+                setResult("createUserResult", "创建用户成功");
+                setDebug(data);
+                await loadLogs();
+                await loadUsers();
+            } catch (err) {
+                setResult("createUserResult", "创建用户失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function extendUser(userId, days) {
+            try {
+                const data = await apiPost(`/users/${userId}/extend`, { days: days });
+                setStatus(`用户 ${userId} 续费成功，已延长 ${days} 天`);
+                setDebug(data);
+                await loadLogs();
+                await loadUsers();
+            } catch (err) {
+                setStatus("续费失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function disableUser(userId) {
+            if (!confirm("确定要停用用户 ID = " + userId + " 吗？")) {
+                return;
+            }
+
+            try {
+                const data = await apiPost(`/users/${userId}/disable`);
+                setStatus(`用户 ${userId} 已停用`);
+                setDebug(data);
+                await loadLogs();
+                await loadUsers();
+                await loadDevices();
+            } catch (err) {
+                setStatus("停用用户失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function restoreUser(userId) {
+            if (!confirm("确定要恢复用户 ID = " + userId + " 吗？")) {
+                return;
+            }
+
+            try {
+                const data = await apiPost(`/users/${userId}/restore`);
+                setStatus(`用户 ${userId} 已恢复`);
+                setDebug(data);
+                await loadLogs();
+                await loadUsers();
+            } catch (err) {
+                setStatus("恢复用户失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function createDevice() {
+            const payload = {
+                user_id: Number(document.getElementById("deviceUserId").value),
+                device_name: document.getElementById("deviceName").value.trim()
+            };
+
+            try {
+                const data = await apiPost("/devices", payload);
+                setResult(
+                    "createDeviceResult",
+                    "创建设备成功。设备 ID = " + data.id + "，分配 IP = " + data.assigned_ip
+                );
+                const safeData = { ...data };
+                if (safeData.client_config) {
+                    safeData.client_config = "[已隐藏，点设备列表里的“配置”或“二维码”查看]";
+                }
+                setDebug(safeData);
+                await loadDevices();
+            } catch (err) {
+                setResult("createDeviceResult", "创建设备失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function restoreDevice(deviceId) {
+            if (!confirm("确定要恢复设备 ID = " + deviceId + " 吗？")) {
+                return;
+            }
+
+            try {
+                const data = await apiPost(`/devices/${deviceId}/restore`);
+                setStatus("恢复设备成功");
+                setDebug(data);
+                await loadLogs();
+                await loadDevices();
+            } catch (err) {
+                setStatus("恢复设备失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function disableDevice(deviceId) {
+            if (!confirm("确定要禁用设备 ID = " + deviceId + " 吗？")) {
+                return;
+            }
+
+            try {
+                const data = await apiPost(`/devices/${deviceId}/disable`);
+                setStatus("禁用设备成功");
+                setDebug(data);
+                await loadLogs();
+                await loadDevices();
+            } catch (err) {
+                setStatus("禁用设备失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const users = await apiGet("/users");
+                latestUsers = users;
+                renderOverview();
+                renderUsersTable();
+            } catch (err) {
+                setStatus("加载用户列表失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function loadDevices() {
+            try {
+                const devices = await apiGet("/devices");
+                latestDevices = devices;
+                renderOverview();
+                renderDevicesTable();
+            } catch (err) {
+                setStatus("加载设备列表失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        async function loadLogs() {
+            try {
+                const logs = await apiGet("/logs");
+                latestLogs = logs;
+                renderLogsTable();
+            } catch (err) {
+                setStatus("加载操作日志失败: " + err.message, true);
+                setDebug(err.message);
+            }
+        }
+
+        function openQrModal(deviceId) {
+            const modal = document.getElementById("qrModal");
+            const img = document.getElementById("qrModalImage");
+            img.src = `/devices/${deviceId}/qr.png`;
+            modal.style.display = "flex";
+        }
+
+        function forceCloseQrModal() {
+            const modal = document.getElementById("qrModal");
+            const img = document.getElementById("qrModalImage");
+            img.src = "";
+            modal.style.display = "none";
+        }
+
+        function closeQrModal(event) {
+            if (event.target.id === "qrModal") {
+                forceCloseQrModal();
+            }
+        }
+
+        async function initPage() {
+            await checkHealth();
+            await loadUsers();
+            await loadDevices();
+            await loadLogs();
+        }
+
+        initPage();
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Env
+.env
+.env.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/
+wg_saas_backups/
+*.bak
+*.backup
+
+# WireGuard sensitive files
+*.key
+*.pem
+*.crt
+*.conf
+*.png
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Build / cache
+.pytest_cache/
+.mypy_cache/
