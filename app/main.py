@@ -384,3 +384,28 @@ def expire_users(
         "expired_user_count": len(expired_users),
         "disabled_device_count": disabled_device_count,
     }
+
+# 用户恢复
+@app.post("/users/{user_id}/restore")
+def restore_user(user_id: int, db: Session = Depends(get_db), _: str = Depends(require_admin)):
+    ...
+
+# 用户禁用
+@app.post("/users/{user_id}/disable")
+def disable_user(user_id: int, db: Session = Depends(get_db), _: str = Depends(require_admin)):
+    ...
+
+# 用户续费
+@app.post("/users/{user_id}/extend")
+def extend_user(user_id: int, days: int, db: Session = Depends(get_db), _: str = Depends(require_admin)):
+    ...
+
+# 设备恢复
+@app.post("/devices/{device_id}/restore")
+def restore_device(device_id: int, db: Session = Depends(get_db), _: str = Depends(require_admin)):
+    ...
+
+# ⚠️ 最重要：配置下载
+@app.get("/devices/{device_id}/download")
+def download_config(device_id: int, db: Session = Depends(get_db), _: str = Depends(require_admin)):
+    ...
